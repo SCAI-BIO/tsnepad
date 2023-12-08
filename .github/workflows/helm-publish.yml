@@ -1,0 +1,55 @@
+name: Relase & Helm Upgrade
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+  
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      
+    - name: Docker Login
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Build & push container
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ghcr.io/scai-bio/tsnepad/tsnepad:${{ github.event.release.tag_name }}
+
+  deploy:
+
+    name: Update k8s deployment
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Set up kubectl
+      uses: azure/k8s-set-context@v1
+      with:
+        kubeconfig: ${{ secrets.KUBE_CONFIG_DATA }}
+
+    - name: Helm Upgrade
+      uses: azure/helm-install@v1
+      with:
+        release-name: tsnepad
+        namespace: bio
+        values: version=${{ github.event.release.tag_name }}
+
+        
